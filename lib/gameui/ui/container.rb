@@ -18,6 +18,11 @@ module GameUI
       @elements = []
 
       if defined?(self.setup); setup; end
+      calculate_internal_box
+    end
+
+    def setup(block = nil)
+      self.instance_eval(&block) if block.is_a?(Proc)
     end
 
     def draw
@@ -30,6 +35,7 @@ module GameUI
 
     def update
       @elements.each(&:update)
+      calculate_internal_box
     end
 
     def button_up(id)
@@ -39,14 +45,16 @@ module GameUI
           when Gosu::MsWheelUp
             @scroll_y+=@scroll_speed
             @scroll_y = 0 if @scroll_y > 0
-            @elements.each {|e| e.set_offset(@scroll_x, @scroll_y) if e.is_a?(Button) }
+            @elements.each {|e| e.set_offset(@scroll_x, @scroll_y) if e.is_a?(Button) or e.is_a?(EditLine) }
           when Gosu::MsWheelDown
             @scroll_y-=@scroll_speed
-            if $window.height-@internal_height-y > 0
+            if @height-@internal_height-y > 0
               @scroll_y = 0
-              p "H: #{@height-@internal_height}", "Y: #{@scroll_y}"
+              p "H: #{@height-@internal_height-y}", "Y: #{@scroll_y}"
+            elsif @scroll_y <= @height-@internal_height
+              @scroll_y = @height-@internal_height
             else
-              @scroll_y = @height-@internal_height if @scroll_y <= @height-@internal_height
+              # Nope
             end
 
             @elements.each {|e| e.set_offset(@scroll_x, @scroll_y) if e.is_a?(Button) }
@@ -61,14 +69,40 @@ module GameUI
       yield(self)
     end
 
+    def calculate_internal_box
+      @elements.each do |e|
+        begin
+          if @internal_width < e.x+e.width
+            p false
+            @internal_width = e.x+e.width
+          end
+          if @internal_height < e.y+e.height
+            p true
+            @internal_height = e.y+e.height
+          end
+        rescue NoMethodError
+        end
+      end
+    end
+
+    def container(x, y, width, height, &block)
+      relative_x = @x+x
+      relative_y = @y+y
+      _container = GameUI::Container.new(relative_x, relative_y, width, height)
+      p "C: #{self.class}-NC: #{_container.class}"
+      _container.setup(block)
+
+      @elements.push(_container)
+    end
+
     def text(text, x, y, size = Text::SIZE, color = self.text_color)
       relative_x = @x+x
       relative_y = @y+y
       _text      = Text.new(text, false, x: relative_x, y: relative_y, size: size, color: color)
       @elements.push(_text)
-      if _text.y-(_text.height*2) > @internal_height
-        @internal_height+=_text.height
-      end
+      # if _text.y-(_text.height*2) > @internal_height
+      #   @internal_height+=_text.height
+      # end
 
       return _text
     end
@@ -78,19 +112,24 @@ module GameUI
       relative_y = @y+y
       _button    = Button.new(text, relative_x, relative_y, false) { if block.is_a?(Proc); block.call; end }
       @elements.push(_button)
-      if _button.y-(_button.height*2) > @internal_height
-        @internal_height+=_button.height
-      end
+      # if _button.y-(_button.height*2) > @internal_height
+      #   @internal_height+=_button.height
+      # end
 
       return _button
+    end
+
+    def background(color, z = 0)
+      _background = Background.new(self, color, z)
+      @elements.push(_background)
     end
 
     def fill_rect(x, y, width, height, color = BODY_COLOR, z = 0)
       $window.fill_rect(x, y, width, height, color)
     end
 
-    def fill(color = BODY_COLOR, z = 0)
-      fill_rect(@x, @y, @width, @height, color, z)
+    def fill(color = Gosu::Color::BLACK, z = 0)
+      self.fill_rect(@x, @y, @width, @height, color, z)
     end
 
     def set_layout_y(start, spacing)

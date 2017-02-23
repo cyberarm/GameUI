@@ -1,5 +1,8 @@
 require "gosu"
+require "securerandom"
 require_relative "gameui/ui/window"
 require_relative "gameui/ui/text"
+require_relative "gameui/ui/edit_line"
 require_relative "gameui/ui/button"
+require_relative "gameui/ui/background"
 require_relative "gameui/ui/container"
